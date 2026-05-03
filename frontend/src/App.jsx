@@ -342,7 +342,7 @@ export default function App() {
     return rows.map((row) => row.join(',')).join('\n')
   }
 
-  if (!authReady || loading && !user) {
+  if (!authReady || !user) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'linear-gradient(180deg, #eff6ff, #f8fafc)', color: '#111827', padding: 24 }}>
         <div style={{ background: '#fff', borderRadius: 18, padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.08)', width: 'min(520px, 100%)' }}>
@@ -365,8 +365,6 @@ export default function App() {
       </div>
     )
   }
-
-  if (!user) return null
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', color: '#111827' }}>
