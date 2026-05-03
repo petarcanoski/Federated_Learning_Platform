@@ -24,10 +24,11 @@ services:
       - postgres
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
     restart: unless-stopped
-    environment:
-      VITE_BACKEND_URL: http://localhost:8000
     ports:
       - "3000:80"
 

@@ -94,7 +94,7 @@ DEPLOYMENT.md                  # Production deployment guide
    ```bash
    cd backend
    python -m venv venv
-   . venv/Scripts/activate  # Windows: venv\Scripts\activate
+   . venv/bin/activate  # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    
    # Start PostgreSQL (Docker)
@@ -107,9 +107,15 @@ DEPLOYMENT.md                  # Production deployment guide
 2. **Frontend setup**:
    ```bash
    cd frontend
+   cp .env.example .env.local   # optional: override VITE_BACKEND_URL
    npm install
    npm run dev
    ```
+
+3. **Access services**:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - API Docs: http://localhost:8000/docs
 
 ## Usage Guide
 
@@ -220,10 +226,11 @@ BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 ```
 
-**Frontend** (Vite):
+**Frontend** (Vite — baked at build time):
 ```env
 VITE_BACKEND_URL=http://localhost:8000
 ```
+Copy `frontend/.env.example` to `frontend/.env.local` to override for local development.
 
 ### Privacy Tuning
 
