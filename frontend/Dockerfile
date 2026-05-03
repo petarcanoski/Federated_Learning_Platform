@@ -2,7 +2,7 @@ FROM node:18-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 # Use legacy-peer-deps to avoid peer dependency resolution failures inside build containers
-RUN npm ci --silent --legacy-peer-deps || npm install --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps || npm install --include=dev --legacy-peer-deps
 COPY . .
 # VITE_BACKEND_URL is baked into the JS bundle at build time, not runtime
 ARG VITE_BACKEND_URL=http://localhost:8000
