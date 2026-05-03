@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fl_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fl_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-fl_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5440:5432"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://fl_user:fl_pass@postgres:5432/fl_db}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      VITE_BACKEND_URL: http://localhost:8000
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres-data:
+

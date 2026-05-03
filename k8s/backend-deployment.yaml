@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fl-backend
+  namespace: fl-platform
+  labels:
+    app: fl-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fl-backend
+  template:
+    metadata:
+      labels:
+        app: fl-backend
+    spec:
+      containers:
+        - name: backend
+          image: user/fl-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://fl_user:fl_pass@fl-postgres:5440/fl_db"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
