@@ -68,6 +68,11 @@ export async function createExperiment(payload) {
   return data
 }
 
+export async function getExperiment(jobId) {
+  const { data } = await client.get(`/experiments/${jobId}`)
+  return data
+}
+
 export async function runFedAvg(jobId) {
   const { data } = await client.post(`/admin/experiments/${jobId}/fedavg`)
   return data

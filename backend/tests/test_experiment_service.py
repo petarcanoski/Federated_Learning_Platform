@@ -62,3 +62,20 @@ def test_secure_and_dp_flags_work_together():
     assert all(metric.client_id.startswith('client_') for metric in result.rounds[0].client_metrics)
 
 
+def test_healthcare_experiment_serializes_hospital_states_on_create():
+    service = ExperimentService()
+    created = service.create_experiment(
+        ExperimentCreateRequest(
+            disease_type='sepsis',
+            rounds=1,
+            epochs=1,
+            hidden_dim=8,
+            hospital_codes=['ohrid', 'bitola', 'skopje'],
+        )
+    )
+
+    assert len(created.hospital_states) == 3
+    assert all(state.hospital_id is not None for state in created.hospital_states)
+    assert all(state.last_trained_round == 0 for state in created.hospital_states)
+
+

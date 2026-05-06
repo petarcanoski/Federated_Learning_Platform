@@ -308,6 +308,7 @@ class ExperimentService:
         for metric in client_metrics:
             metric.round_id = round_obj.id
             db.add(metric)
+        db.flush()
 
         if privacy_cfg.enabled and privacy_cfg.noise_multiplier > 0:
             experiment.dp_epsilon = compute_dp_epsilon(
@@ -435,6 +436,7 @@ class ExperimentService:
         for metric in client_metrics:
             metric.round_id = round_obj.id
             db.add(metric)
+        db.flush()
 
         if privacy_cfg.enabled and privacy_cfg.noise_multiplier > 0:
             experiment.dp_epsilon = compute_dp_epsilon(
@@ -524,6 +526,7 @@ class ExperimentService:
                             raw_weights_json=None,
                             dataset_preview=self._dataset_preview(dataset, spec.feature_names),
                             notification="Waiting for hospital training to start",
+                            last_trained_round=0,
                         )
                     )
                     hospital.dataset_rows = stats["num_patients"]
@@ -531,6 +534,7 @@ class ExperimentService:
                     hospital.disease_type = disease_type
                     hospital.status = "waiting"
 
+            db.flush()
             return self._serialize_experiment(experiment)
 
     def start_experiment(self, request: ExperimentCreateRequest) -> ExperimentOut:

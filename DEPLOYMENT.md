@@ -186,6 +186,22 @@ docker compose logs backend  # Check for startup errors
 - `kubectl` CLI installed
 - Image pushed to registry accessible by cluster
 
+
+
+```bash
+k3d cluster create my-federated-cluster --api-port 6550 -p "8081:80@loadbalancer" --agents 2
+```
+
+```bash
+k3d kubeconfig get my-federated-cluster > ~/.kube/config
+chmod 600 ~/.kube/config
+kubectl config use-context k3d-my-federated-cluster
+```
+
+```bash
+kubectl get nodes
+```
+
 ### Deploy Namespace and Secrets
 
 ```bash
@@ -193,8 +209,8 @@ kubectl apply -f k8s/namespace.yaml
 
 # Create database secret
 kubectl create secret generic database-credentials \
-  --from-literal=DATABASE_URL="postgresql://..." \
-  -n federated-learning
+  --from-literal=DATABASE_URL="postgresql://fl_user:fl_pass@postgres:5440/fl_db" \
+  -n fl-platform
 ```
 
 ### Deploy Backend
@@ -209,6 +225,14 @@ env:
         key: DATABASE_URL
 ```
 
+
+```bash
+docker build -t user/fl-backend:latest .
+k3d image import user/fl-backend:latest -c my-federated-cluster
+docker build -t user/fl-frontend:latest .
+k3d image import user/fl-frontend:latest -c my-federated-cluster
+```
+
 Deploy:
 ```bash
 kubectl apply -f k8s/backend-deployment.yaml
@@ -217,8 +241,8 @@ kubectl apply -f k8s/backend-service.yaml
 
 Verify:
 ```bash
-kubectl get pods -n federated-learning
-kubectl logs -n federated-learning -l app=backend --tail=100
+kubectl get pods -n fl-platform
+kubectl logs -n fl-platform -l app=fl-backend --tail=50
 ```
 
 ### Deploy PostgreSQL StatefulSet (Optional)
@@ -231,7 +255,8 @@ kubectl apply -f k8s/postgres-statefulset.yaml
 ### Deploy Frontend
 
 ```bash
-kubectl apply -f frontend-deployment.yaml  # Create if not present
+kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/frontend-service.yaml
 kubectl apply -f k8s/backend-ingress.yaml
 ```
 
@@ -257,10 +282,35 @@ spec:
 
 ### Health Checks
 
+```bash
+# Forward local port 8000 to the backend service port 80
+kubectl port-forward svc/fl-backend 8000:80 -n fl-platform
+kubectl port-forward svc/fl-frontend 3000:80 -n fl-platform
+```
+
 Backend health endpoint:
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8081/health
 ```
+
+For database connectivity:
+```bash
+kubectl exec -it fl-postgres-0 -n fl-platform -- psql -U fl_user -d fl_db
+```
+
+
+Stop cluster:
+```bash  
+
+k3d cluster stop my-federated-cluster
+k3d cluster delete --all
+```
+
+Start cluster:
+```bash  
+k3d cluster start my-federated-cluster
+```
+
 
 ### Logging
 
@@ -270,7 +320,7 @@ View application logs:
 docker compose logs -f backend
 
 # Kubernetes
-kubectl logs -n federated-learning -f -l app=backend
+kubectl logs -n federated-learning -f -l app=fl-backend
 
 # Google Cloud Logging
 gcloud logging read 'resource.type="cloud_run_revision"' --limit 50

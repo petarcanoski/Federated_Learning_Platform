@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import './App.css'
 import ExperimentCharts from './components/ExperimentCharts'
 import ClientMetricsTable from './components/ClientMetricsTable'
 import {
@@ -9,6 +10,7 @@ import {
   exportResults,
   getAdminDashboard,
   getAuthToken,
+  getExperiment,
   getHospitalDashboard,
   login,
   me,
@@ -17,10 +19,7 @@ import {
   trainHospital,
 } from './api'
 
-const defaultLogin = {
-  username: 'admin',
-  password: 'admin123',
-}
+const defaultLogin = { username: 'admin', password: 'admin123' }
 
 const defaultExperimentForm = {
   disease_type: 'sepsis',
@@ -44,63 +43,78 @@ const defaultHospitalForm = {
 }
 
 function formatPct(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
   return `${Math.round(Number(value) * 100)}%`
 }
 
 function formatFixed(value, digits = 4) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
   return Number(value).toFixed(digits)
 }
 
-function Card({ title, value, subtitle, accent = '#2563eb' }) {
+function shortId(value) {
+  return value ? `${value.slice(0, 8)}...` : '-'
+}
+
+function getErrorMessage(err, fallback) {
+  const detail = err?.response?.data?.detail
+  if (Array.isArray(detail)) return detail.map((item) => item.msg).join(', ')
+  return detail || err?.message || fallback
+}
+
+function StatusBadge({ status }) {
+  const normalized = String(status || 'waiting').toLowerCase()
+  return <span className={`status status-${normalized.replace(/\s+/g, '-')}`}>{status || 'waiting'}</span>
+}
+
+function StatTile({ label, value, detail, tone = 'blue' }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderTop: `4px solid ${accent}` }}>
-      <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8 }}>{value}</div>
-      {subtitle ? <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>{subtitle}</div> : null}
+    <div className={`stat-tile stat-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail ? <small>{detail}</small> : null}
     </div>
   )
 }
 
-function Section({ title, action, children }) {
+function Panel({ title, eyebrow, action, children, className = '' }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>{title}</h3>
-        {action}
+    <section className={`panel ${className}`}>
+      <div className="panel-header">
+        <div>
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <h2>{title}</h2>
+        </div>
+        {action ? <div className="panel-action">{action}</div> : null}
       </div>
       {children}
-    </div>
+    </section>
   )
 }
 
 function TextInput({ label, value, onChange, type = 'text', placeholder }) {
   return (
-    <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-      <span style={{ color: '#374151', fontWeight: 600 }}>{label}</span>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14 }}
-      />
+    <label className="field">
+      <span>{label}</span>
+      <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </label>
   )
 }
 
 function NumberInput({ label, value, onChange, step = '1' }) {
   return (
-    <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-      <span style={{ color: '#374151', fontWeight: 600 }}>{label}</span>
-      <input
-        type="number"
-        step={step}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14 }}
-      />
+    <label className="field">
+      <span>{label}</span>
+      <input type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  )
+}
+
+function Toggle({ label, checked, onChange }) {
+  return (
+    <label className="toggle-row">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{label}</span>
     </label>
   )
 }
@@ -108,35 +122,10 @@ function NumberInput({ label, value, onChange, step = '1' }) {
 function ProgressBar({ value }) {
   const pct = Math.max(0, Math.min(100, Number(value) || 0))
   return (
-    <div style={{ width: '100%', height: 12, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #2563eb, #10b981)', transition: 'width 300ms ease' }} />
+    <div className="progress-track" aria-label={`${pct}% complete`}>
+      <div className="progress-fill" style={{ width: `${pct}%` }} />
     </div>
   )
-}
-
-function StatusBadge({ status }) {
-  const colorMap = {
-    waiting: '#f59e0b',
-    training: '#2563eb',
-    'weights sent': '#8b5cf6',
-    done: '#10b981',
-    'aggregation pending': '#f97316',
-    aggregated: '#14b8a6',
-    finished: '#10b981',
-  }
-  const color = colorMap[status] || '#6b7280'
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: `${color}15`, color, fontSize: 12, fontWeight: 700 }}>
-      {status}
-    </span>
-  )
-}
-
-function compareAccuracy(state) {
-  const previous = Number(state?.previous_accuracy || 0)
-  const next = Number(state?.new_accuracy || 0)
-  const improvement = next - previous
-  return { previous, next, improvement }
 }
 
 export default function App() {
@@ -147,14 +136,17 @@ export default function App() {
   const [adminDashboard, setAdminDashboard] = useState(null)
   const [hospitalDashboard, setHospitalDashboard] = useState(null)
   const [selectedJobId, setSelectedJobId] = useState('')
+  const [selectedExperiment, setSelectedExperiment] = useState(null)
   const [loginForm, setLoginForm] = useState(defaultLogin)
   const [experimentForm, setExperimentForm] = useState(defaultExperimentForm)
   const [hospitalForm, setHospitalForm] = useState(defaultHospitalForm)
 
-  const activeExperiment = useMemo(() => {
+  const activeSummary = useMemo(() => {
     if (!adminDashboard?.experiments?.length) return null
     return adminDashboard.experiments.find((item) => item.job_id === selectedJobId) || adminDashboard.experiments[0]
   }, [adminDashboard, selectedJobId])
+
+  const activeExperiment = selectedExperiment || activeSummary
 
   async function refreshSession() {
     const token = getAuthToken()
@@ -169,20 +161,23 @@ export default function App() {
       setUser(meResponse.user)
       if (meResponse.user.role === 'ADMIN') {
         const dashboard = await getAdminDashboard()
+        const fallbackJobId = dashboard.experiments?.[0]?.job_id || ''
         setAdminDashboard(dashboard)
         setHospitalDashboard(null)
-        setSelectedJobId((prev) => prev || dashboard.experiments?.[0]?.job_id || '')
+        setSelectedJobId((prev) => prev || fallbackJobId)
       } else {
         const dashboard = await getHospitalDashboard()
         setHospitalDashboard(dashboard)
         setAdminDashboard(null)
+        setSelectedExperiment(null)
       }
     } catch (err) {
       clearAuthToken()
       setUser(null)
       setAdminDashboard(null)
       setHospitalDashboard(null)
-      setError(err?.response?.data?.detail || err?.message || 'Authentication expired')
+      setSelectedExperiment(null)
+      setError(getErrorMessage(err, 'Authentication expired'))
     } finally {
       setLoading(false)
       setAuthReady(true)
@@ -201,6 +196,24 @@ export default function App() {
     return () => clearInterval(interval)
   }, [authReady, user?.id, user?.role])
 
+  useEffect(() => {
+    if (user?.role !== 'ADMIN' || !selectedJobId) {
+      setSelectedExperiment(null)
+      return
+    }
+    let cancelled = false
+    getExperiment(selectedJobId)
+      .then((experiment) => {
+        if (!cancelled) setSelectedExperiment(experiment)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(getErrorMessage(err, 'Could not load experiment details'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.role, selectedJobId, adminDashboard?.experiments?.length])
+
   async function handleLogin(e) {
     e.preventDefault()
     setLoading(true)
@@ -210,7 +223,7 @@ export default function App() {
       setAuthToken(result.access_token)
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Login failed')
+      setError(getErrorMessage(err, 'Login failed'))
     } finally {
       setLoading(false)
     }
@@ -222,6 +235,7 @@ export default function App() {
     setAdminDashboard(null)
     setHospitalDashboard(null)
     setSelectedJobId('')
+    setSelectedExperiment(null)
   }
 
   async function handleCreateHospital() {
@@ -231,7 +245,7 @@ export default function App() {
       await createHospitalAccount(hospitalForm)
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Failed to create hospital account')
+      setError(getErrorMessage(err, 'Failed to create hospital account'))
     } finally {
       setLoading(false)
     }
@@ -249,16 +263,14 @@ export default function App() {
         hidden_dim: Number(experimentForm.hidden_dim),
         clipping_norm: Number(experimentForm.clipping_norm),
         noise_multiplier: Number(experimentForm.noise_multiplier),
-        hospital_codes: experimentForm.hospital_codes
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
+        hospital_codes: experimentForm.hospital_codes.split(',').map((item) => item.trim()).filter(Boolean),
       }
       const created = await createExperiment(payload)
       setSelectedJobId(created.job_id)
+      setSelectedExperiment(created)
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Failed to create experiment')
+      setError(getErrorMessage(err, 'Failed to create experiment'))
     } finally {
       setLoading(false)
     }
@@ -271,7 +283,7 @@ export default function App() {
       await trainHospital()
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Training failed')
+      setError(getErrorMessage(err, 'Training failed'))
     } finally {
       setLoading(false)
     }
@@ -282,10 +294,11 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      await runFedAvg(activeExperiment.job_id)
+      const updated = await runFedAvg(activeExperiment.job_id)
+      setSelectedExperiment(updated)
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'FedAvg failed')
+      setError(getErrorMessage(err, 'FedAvg failed'))
     } finally {
       setLoading(false)
     }
@@ -297,9 +310,11 @@ export default function App() {
     setError('')
     try {
       await broadcastModel(activeExperiment.job_id)
+      const updated = await getExperiment(activeExperiment.job_id)
+      setSelectedExperiment(updated)
       await refreshSession()
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Broadcast failed')
+      setError(getErrorMessage(err, 'Broadcast failed'))
     } finally {
       setLoading(false)
     }
@@ -319,7 +334,7 @@ export default function App() {
       anchor.click()
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || 'Export failed')
+      setError(getErrorMessage(err, 'Export failed'))
     }
   }
 
@@ -344,54 +359,23 @@ export default function App() {
 
   if (!authReady || !user) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'linear-gradient(180deg, #eff6ff, #f8fafc)', color: '#111827', padding: 24 }}>
-        <div style={{ background: '#fff', borderRadius: 18, padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.08)', width: 'min(520px, 100%)' }}>
-          <h1 style={{ marginTop: 0, marginBottom: 8 }}>FedHealth-MK</h1>
-          <p style={{ marginTop: 0, color: '#6b7280' }}>
-            Research simulation platform for healthcare federated learning. Login first to continue.
-          </p>
-          <form onSubmit={handleLogin} style={{ display: 'grid', gap: 14 }}>
-            <TextInput label="Username" value={loginForm.username} onChange={(value) => setLoginForm((prev) => ({ ...prev, username: value }))} />
-            <TextInput label="Password" type="password" value={loginForm.password} onChange={(value) => setLoginForm((prev) => ({ ...prev, password: value }))} />
-            <button type="submit" disabled={loading} style={primaryButtonStyle}>
-              {loading ? 'Signing in…' : 'Login'}
-            </button>
-          </form>
-          <div style={{ marginTop: 14, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
-            Demo credentials: <strong>admin / admin123</strong> or hospital users like <strong>ohrid / hospital123</strong>.
-          </div>
-          {error ? <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: '#fef2f2', color: '#b91c1c' }}>{error}</div> : null}
-        </div>
-      </div>
+      <LoginView
+        loginForm={loginForm}
+        setLoginForm={setLoginForm}
+        loading={loading}
+        error={error}
+        onLogin={handleLogin}
+      />
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6', color: '#111827' }}>
-      <div style={{ maxWidth: 1500, margin: '0 auto', padding: 24 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 24 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>FedHealth-MK</h1>
-            <p style={{ margin: '8px 0 0', color: '#6b7280', maxWidth: 900 }}>
-              Healthcare federated learning simulation for Ministry of Health and hospitals in Ohrid, Bitola, and Skopje.
-              Local training is simulated on one machine but architecturally represents separate hospital sites in production.
-            </p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ marginBottom: 8 }}><StatusBadge status={user.role} /></div>
-            <button onClick={handleLogout} style={secondaryButtonStyle}>Logout</button>
-          </div>
-        </header>
-
-        {error ? (
-          <div style={{ marginBottom: 16, padding: 12, background: '#fef2f2', color: '#b91c1c', borderRadius: 10 }}>
-            {error}
-          </div>
-        ) : null}
-
+    <div className="app-shell">
+      <TopBar user={user} loading={loading} onLogout={handleLogout} />
+      <main className="workspace">
+        {error ? <div className="alert alert-error">{error}</div> : null}
         {user.role === 'ADMIN' ? (
           <AdminView
-            user={user}
             dashboard={adminDashboard}
             selectedJobId={selectedJobId}
             setSelectedJobId={setSelectedJobId}
@@ -409,15 +393,49 @@ export default function App() {
             onExportJson={() => handleExport('json')}
           />
         ) : (
-          <HospitalView
-            user={user}
-            dashboard={hospitalDashboard}
-            loading={loading}
-            onTrain={handleTrainHospital}
-          />
+          <HospitalView dashboard={hospitalDashboard} loading={loading} onTrain={handleTrainHospital} />
         )}
-      </div>
+      </main>
     </div>
+  )
+}
+
+function LoginView({ loginForm, setLoginForm, loading, error, onLogin }) {
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <div className="brand-mark">FH</div>
+        <p className="eyebrow">Federated Learning Platform</p>
+        <h1>FedHealth-MK</h1>
+        <p className="login-copy">Operational workspace for ministry-led healthcare model training across hospital sites.</p>
+        <form className="form-stack" onSubmit={onLogin}>
+          <TextInput label="Username" value={loginForm.username} onChange={(value) => setLoginForm((prev) => ({ ...prev, username: value }))} />
+          <TextInput label="Password" type="password" value={loginForm.password} onChange={(value) => setLoginForm((prev) => ({ ...prev, password: value }))} />
+          <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Login'}</button>
+        </form>
+        <p className="hint">Demo: admin / admin123 or ohrid / hospital123</p>
+        {error ? <div className="alert alert-error">{error}</div> : null}
+      </section>
+    </main>
+  )
+}
+
+function TopBar({ user, loading, onLogout }) {
+  return (
+    <header className="topbar">
+      <div className="topbar-brand">
+        <div className="brand-mark">FH</div>
+        <div>
+          <h1>FedHealth-MK</h1>
+          <p>{user.role === 'ADMIN' ? 'Ministry control center' : 'Hospital training workspace'}</p>
+        </div>
+      </div>
+      <div className="topbar-actions">
+        <StatusBadge status={user.role} />
+        <span className="user-chip">{user.username}</span>
+        <button className="btn btn-secondary" onClick={onLogout} disabled={loading}>Logout</button>
+      </div>
+    </header>
   )
 }
 
@@ -438,189 +456,194 @@ function AdminView({
   onExportCsv,
   onExportJson,
 }) {
-  const hospitals = dashboard?.hospitals || []
   const experiments = dashboard?.experiments || []
-  const selectedExperiment = activeExperiment
-  const globalAccuracy = selectedExperiment?.global_accuracy
-  const epsilon = selectedExperiment?.dp_epsilon
-  const roundProgress = selectedExperiment?.round_progress || '0/0'
-  const readyToAggregate = hospitals.length > 0 && hospitals.every((item) => item.status === 'weights sent' || item.status === 'done')
+  const hospitalStates = activeExperiment?.hospital_states || []
+  const readyToAggregate = hospitalStates.length > 0 && hospitalStates.every((item) => item.status === 'weights sent' || item.status === 'done')
+  const trainedCount = hospitalStates.filter((item) => item.weights_json).length
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
-        <Card title="Hospitals" value={hospitals.length} subtitle="Real-time status from all sites" accent="#2563eb" />
-        <Card title="Selected round" value={roundProgress} subtitle="Round progress for current experiment" accent="#10b981" />
-        <Card title="Global accuracy" value={formatPct(globalAccuracy)} subtitle="After aggregation / distribution" accent="#f59e0b" />
-        <Card title="Privacy ε" value={formatFixed(epsilon)} subtitle="Differential privacy accounting" accent="#8b5cf6" />
+    <div className="screen-grid">
+      <section className="hero-panel admin-hero">
+        <div>
+          <p className="eyebrow">Admin Section</p>
+          <h2>Coordinate experiments, hospitals, aggregation, and model delivery.</h2>
+        </div>
+        <div className="hero-status">
+          <StatusBadge status={activeExperiment?.status || 'no experiment'} />
+          <span>{activeExperiment?.job_id ? shortId(activeExperiment.job_id) : 'Create an experiment to begin'}</span>
+        </div>
+      </section>
+
+      <div className="stats-grid">
+        <StatTile label="Hospitals enrolled" value={hospitalStates.length || dashboard?.hospitals?.length || 0} detail={`${trainedCount} sent weights`} tone="blue" />
+        <StatTile label="Round progress" value={activeExperiment?.round_progress || '0/0'} detail="Selected experiment" tone="green" />
+        <StatTile label="Global accuracy" value={formatPct(activeExperiment?.global_accuracy)} detail="Latest model score" tone="amber" />
+        <StatTile label="Privacy epsilon" value={formatFixed(activeExperiment?.dp_epsilon)} detail="DP accountant" tone="violet" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '380px minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
-        <div style={{ display: 'grid', gap: 16 }}>
-          <Section title="Create hospital account">
-            <div style={{ display: 'grid', gap: 12 }}>
-              <TextInput label="Hospital code" value={hospitalForm.code} onChange={(value) => setHospitalForm((prev) => ({ ...prev, code: value }))} />
-              <TextInput label="Hospital name" value={hospitalForm.name} onChange={(value) => setHospitalForm((prev) => ({ ...prev, name: value }))} />
-              <TextInput label="City" value={hospitalForm.city} onChange={(value) => setHospitalForm((prev) => ({ ...prev, city: value }))} />
-              <TextInput label="Login username" value={hospitalForm.username} onChange={(value) => setHospitalForm((prev) => ({ ...prev, username: value }))} />
-              <TextInput label="Temporary password" type="password" value={hospitalForm.password} onChange={(value) => setHospitalForm((prev) => ({ ...prev, password: value }))} />
-              <button onClick={onCreateHospital} disabled={loading} style={primaryButtonStyle}>Create hospital</button>
-            </div>
-          </Section>
+      <div className="admin-layout">
+        <aside className="side-column">
+          <ExperimentForm
+            form={experimentForm}
+            setForm={setExperimentForm}
+            loading={loading}
+            onCreate={onCreateExperiment}
+          />
+          <HospitalAccountForm
+            form={hospitalForm}
+            setForm={setHospitalForm}
+            loading={loading}
+            onCreate={onCreateHospital}
+          />
+        </aside>
 
-          <Section title="Create experiment / round setup">
-            <div style={{ display: 'grid', gap: 12 }}>
-              <TextInput label="Disease type" value={experimentForm.disease_type} onChange={(value) => setExperimentForm((prev) => ({ ...prev, disease_type: value }))} />
-              <TextInput label="Hospitals (comma-separated codes)" value={experimentForm.hospital_codes} onChange={(value) => setExperimentForm((prev) => ({ ...prev, hospital_codes: value }))} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-                <NumberInput label="Rounds" value={experimentForm.rounds} onChange={(value) => setExperimentForm((prev) => ({ ...prev, rounds: value }))} />
-                <NumberInput label="Epochs" value={experimentForm.epochs} onChange={(value) => setExperimentForm((prev) => ({ ...prev, epochs: value }))} />
-                <NumberInput label="Learning rate" value={experimentForm.learning_rate} step="0.001" onChange={(value) => setExperimentForm((prev) => ({ ...prev, learning_rate: value }))} />
-                <NumberInput label="Hidden dim" value={experimentForm.hidden_dim} onChange={(value) => setExperimentForm((prev) => ({ ...prev, hidden_dim: value }))} />
-                <NumberInput label="Clipping norm" value={experimentForm.clipping_norm} step="0.1" onChange={(value) => setExperimentForm((prev) => ({ ...prev, clipping_norm: value }))} />
-                <NumberInput label="Noise multiplier" value={experimentForm.noise_multiplier} step="0.05" onChange={(value) => setExperimentForm((prev) => ({ ...prev, noise_multiplier: value }))} />
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                <input type="checkbox" checked={experimentForm.dp_enabled} onChange={(e) => setExperimentForm((prev) => ({ ...prev, dp_enabled: e.target.checked }))} />
-                Enable differential privacy
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                <input type="checkbox" checked={experimentForm.secure_aggregation_enabled} onChange={(e) => setExperimentForm((prev) => ({ ...prev, secure_aggregation_enabled: e.target.checked }))} />
-                Enable secure aggregation
-              </label>
-              <button onClick={onCreateExperiment} disabled={loading} style={primaryButtonStyle}>Create experiment</button>
-            </div>
-          </Section>
-        </div>
-
-        <div style={{ display: 'grid', gap: 16 }}>
-          <Section
-            title="Hospital status board"
-            action={<span style={{ color: '#6b7280', fontSize: 13 }}>waiting / training / weights sent / done</span>}
+        <section className="main-column">
+          <Panel
+            title="Federated Control"
+            eyebrow="Selected experiment"
+            action={<StatusBadge status={activeExperiment?.status || 'waiting'} />}
           >
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
-                    <th style={tableTh}>Hospital</th>
-                    <th style={tableTh}>Status</th>
-                    <th style={tableTh}>Progress</th>
-                    <th style={tableTh}>Local accuracy</th>
-                    <th style={tableTh}>Weights</th>
-                    <th style={tableTh}>Notification</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {hospitals.map((item) => {
-                    const weightsReceived = item.weights_json ? '✅' : '⏳'
-                    return (
-                      <tr key={`${item.hospital_code}-${item.hospital_id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={tableTd}>
-                          <div style={{ fontWeight: 700 }}>{item.hospital_name}</div>
-                          <div style={{ color: '#6b7280', fontSize: 12 }}>{item.hospital_code}</div>
-                        </td>
-                        <td style={tableTd}><StatusBadge status={item.status} /></td>
-                        <td style={tableTd}><ProgressBar value={item.training_progress} /></td>
-                        <td style={tableTd}>{formatPct(item.local_accuracy)}</td>
-                        <td style={tableTd}>{weightsReceived}</td>
-                        <td style={tableTd}>
-                          <div style={{ fontSize: 13 }}>{item.notification || '—'}</div>
-                          {item.previous_accuracy !== null && item.new_accuracy !== null ? (
-                            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
-                              Previous {formatPct(item.previous_accuracy)} → New {formatPct(item.new_accuracy)}
-                            </div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Section>
-
-          <Section
-            title="Federated control center"
-            action={<span style={{ color: '#6b7280', fontSize: 13 }}>Research simulation; no raw data leaves hospitals</span>}
-          >
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <button disabled={!selectedExperiment?.job_id || loading || !readyToAggregate} onClick={onRunFedAvg} style={primaryButtonStyle}>
-                  Run FedAvg &amp; Improve Global Model
-                </button>
-                <button disabled={!selectedExperiment?.job_id || loading} onClick={onBroadcastModel} style={secondaryButtonStyle}>
-                  Send Improved Model to All Hospitals
-                </button>
-                <button disabled={!selectedExperiment?.job_id} onClick={onExportCsv} style={secondaryButtonStyle}>Export CSV</button>
-                <button disabled={!selectedExperiment?.job_id} onClick={onExportJson} style={secondaryButtonStyle}>Export JSON</button>
+            <div className="control-grid">
+              <div>
+                <dl className="detail-list">
+                  <div><dt>Experiment</dt><dd>{shortId(activeExperiment?.job_id)}</dd></div>
+                  <div><dt>Disease</dt><dd>{activeExperiment?.disease_type || '-'}</dd></div>
+                  <div><dt>Rounds</dt><dd>{activeExperiment?.round_progress || '0/0'}</dd></div>
+                  <div><dt>Hospitals ready</dt><dd>{trainedCount}/{hospitalStates.length || 0}</dd></div>
+                </dl>
               </div>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>
-                Round progress: <strong>{roundProgress}</strong> • Global accuracy: <strong>{formatPct(globalAccuracy)}</strong> • Privacy epsilon: <strong>{formatFixed(epsilon)}</strong>
+              <div className="button-cluster">
+                <button className="btn btn-primary" disabled={!activeExperiment?.job_id || loading || !readyToAggregate} onClick={onRunFedAvg}>Run FedAvg</button>
+                <button className="btn btn-secondary" disabled={!activeExperiment?.job_id || loading} onClick={onBroadcastModel}>Broadcast Model</button>
+                <button className="btn btn-secondary" disabled={!activeExperiment?.job_id} onClick={onExportCsv}>Export CSV</button>
+                <button className="btn btn-secondary" disabled={!activeExperiment?.job_id} onClick={onExportJson}>Export JSON</button>
               </div>
             </div>
-          </Section>
+          </Panel>
 
-          <Section title="Experiments">
-            <div style={{ display: 'grid', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
-              {experiments.map((item) => (
-                <button
-                  key={item.job_id}
-                  onClick={() => setSelectedJobId(item.job_id)}
-                  style={{
-                    textAlign: 'left',
-                    padding: 12,
-                    borderRadius: 10,
-                    border: selectedJobId === item.job_id ? '2px solid #2563eb' : '1px solid #e5e7eb',
-                    background: '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <strong>{item.job_id.slice(0, 8)}…</strong>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
-                    {item.disease_type} • {item.round_progress} • accuracy {formatPct(item.global_accuracy)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </Section>
+          <Panel title="Hospital Status Board" eyebrow="Live training state">
+            <HospitalStateTable states={hospitalStates} />
+          </Panel>
 
-          {selectedExperiment ? (
-            <>
-              <Section title="Current experiment summary">
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, lineHeight: 1.5 }}>
-{JSON.stringify(
-  {
-    job_id: selectedExperiment.job_id,
-    status: selectedExperiment.status,
-    disease_type: selectedExperiment.disease_type,
-    current_round: selectedExperiment.current_round,
-    total_rounds: selectedExperiment.total_rounds,
-    round_progress: selectedExperiment.round_progress,
-    global_accuracy: selectedExperiment.global_accuracy,
-    dp_epsilon: selectedExperiment.dp_epsilon,
-    dp_delta: selectedExperiment.dp_delta,
-    hospitals: selectedExperiment.hospital_states?.map((item) => ({
-      hospital: item.hospital_name,
-      status: item.status,
-      local_accuracy: item.local_accuracy,
-      weights_sent: Boolean(item.weights_json),
-    })),
-  },
-  null,
-  2,
-)}
-                </pre>
-              </Section>
-              <ExperimentCharts rounds={selectedExperiment.rounds} />
-              <ClientMetricsTable round={selectedExperiment.rounds?.[selectedExperiment.rounds.length - 1]} />
-            </>
-          ) : null}
-        </div>
+          <div className="two-column">
+            <Panel title="Experiments" eyebrow={`${experiments.length} total`}>
+              <ExperimentList experiments={experiments} selectedJobId={selectedJobId} onSelect={setSelectedJobId} />
+            </Panel>
+            <Panel title="Configuration" eyebrow="Current run">
+              <ConfigSummary experiment={activeExperiment} />
+            </Panel>
+          </div>
+
+          <ExperimentCharts rounds={activeExperiment?.rounds || []} />
+          <ClientMetricsTable round={activeExperiment?.rounds?.[activeExperiment.rounds.length - 1]} />
+        </section>
       </div>
     </div>
+  )
+}
+
+function ExperimentForm({ form, setForm, loading, onCreate }) {
+  return (
+    <Panel title="Create Experiment" eyebrow="Round setup">
+      <div className="form-stack">
+        <TextInput label="Disease type" value={form.disease_type} onChange={(value) => setForm((prev) => ({ ...prev, disease_type: value }))} />
+        <TextInput label="Hospital codes" value={form.hospital_codes} onChange={(value) => setForm((prev) => ({ ...prev, hospital_codes: value }))} />
+        <div className="form-grid">
+          <NumberInput label="Rounds" value={form.rounds} onChange={(value) => setForm((prev) => ({ ...prev, rounds: value }))} />
+          <NumberInput label="Epochs" value={form.epochs} onChange={(value) => setForm((prev) => ({ ...prev, epochs: value }))} />
+          <NumberInput label="Learning rate" value={form.learning_rate} step="0.001" onChange={(value) => setForm((prev) => ({ ...prev, learning_rate: value }))} />
+          <NumberInput label="Hidden dim" value={form.hidden_dim} onChange={(value) => setForm((prev) => ({ ...prev, hidden_dim: value }))} />
+          <NumberInput label="Clip norm" value={form.clipping_norm} step="0.1" onChange={(value) => setForm((prev) => ({ ...prev, clipping_norm: value }))} />
+          <NumberInput label="Noise" value={form.noise_multiplier} step="0.05" onChange={(value) => setForm((prev) => ({ ...prev, noise_multiplier: value }))} />
+        </div>
+        <Toggle label="Differential privacy" checked={form.dp_enabled} onChange={(checked) => setForm((prev) => ({ ...prev, dp_enabled: checked }))} />
+        <Toggle label="Secure aggregation" checked={form.secure_aggregation_enabled} onChange={(checked) => setForm((prev) => ({ ...prev, secure_aggregation_enabled: checked }))} />
+        <button className="btn btn-primary" onClick={onCreate} disabled={loading}>Create Experiment</button>
+      </div>
+    </Panel>
+  )
+}
+
+function HospitalAccountForm({ form, setForm, loading, onCreate }) {
+  return (
+    <Panel title="Hospital Account" eyebrow="Provision access">
+      <div className="form-stack">
+        <TextInput label="Code" value={form.code} onChange={(value) => setForm((prev) => ({ ...prev, code: value }))} />
+        <TextInput label="Name" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+        <TextInput label="City" value={form.city} onChange={(value) => setForm((prev) => ({ ...prev, city: value }))} />
+        <TextInput label="Username" value={form.username} onChange={(value) => setForm((prev) => ({ ...prev, username: value }))} />
+        <TextInput label="Temporary password" type="password" value={form.password} onChange={(value) => setForm((prev) => ({ ...prev, password: value }))} />
+        <button className="btn btn-secondary" onClick={onCreate} disabled={loading}>Create Hospital</button>
+      </div>
+    </Panel>
+  )
+}
+
+function HospitalStateTable({ states }) {
+  if (!states.length) return <EmptyState title="No hospitals enrolled" detail="Create or select an experiment to see hospital states." />
+  return (
+    <div className="table-scroll">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Hospital</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Samples</th>
+            <th>Accuracy</th>
+            <th>Weights</th>
+            <th>Notification</th>
+          </tr>
+        </thead>
+        <tbody>
+          {states.map((item) => (
+            <tr key={`${item.hospital_id}-${item.hospital_code}`}>
+              <td>
+                <strong>{item.hospital_name}</strong>
+                <small>{item.hospital_code}</small>
+              </td>
+              <td><StatusBadge status={item.status} /></td>
+              <td><ProgressBar value={item.training_progress} /></td>
+              <td>{item.sample_count}</td>
+              <td>{formatPct(item.local_accuracy)}</td>
+              <td>{item.weights_json ? 'Received' : 'Pending'}</td>
+              <td className="muted-cell">{item.notification || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ExperimentList({ experiments, selectedJobId, onSelect }) {
+  if (!experiments.length) return <EmptyState title="No experiments" detail="Create the first experiment from the setup panel." />
+  return (
+    <div className="experiment-list">
+      {experiments.map((item) => (
+        <button className={`experiment-row ${selectedJobId === item.job_id ? 'is-active' : ''}`} key={item.job_id} onClick={() => onSelect(item.job_id)}>
+          <span>
+            <strong>{shortId(item.job_id)}</strong>
+            <small>{item.disease_type} - {item.round_progress}</small>
+          </span>
+          <StatusBadge status={item.status} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ConfigSummary({ experiment }) {
+  const config = experiment?.config || {}
+  return (
+    <dl className="detail-list compact">
+      <div><dt>Model</dt><dd>{experiment?.model_name || 'simple_classifier'}</dd></div>
+      <div><dt>Input dim</dt><dd>{config.input_dim ?? '-'}</dd></div>
+      <div><dt>Hidden dim</dt><dd>{config.hidden_dim ?? '-'}</dd></div>
+      <div><dt>Learning rate</dt><dd>{config.learning_rate ?? '-'}</dd></div>
+      <div><dt>DP enabled</dt><dd>{config.dp_enabled ? 'Yes' : 'No'}</dd></div>
+      <div><dt>Secure agg</dt><dd>{config.secure_aggregation_enabled ? 'Yes' : 'No'}</dd></div>
+    </dl>
   )
 }
 
@@ -629,84 +652,96 @@ function HospitalView({ dashboard, loading, onTrain }) {
   const user = dashboard?.user
   const active = dashboard?.active_experiment
   const stats = dashboard?.dataset_stats
-  const comparison = compareAccuracy(active)
-  const improvement = Number(comparison.improvement || 0)
+  const previous = Number(active?.previous_accuracy || 0)
+  const next = Number(active?.new_accuracy || 0)
+  const improvement = next - previous
+  const status = active?.status || hospital?.status || 'waiting'
+  const progress = status === 'weights sent' || status === 'done' ? 100 : status === 'training' ? 55 : 0
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
-        <Card title="Hospital" value={hospital?.name || '—'} subtitle={`${hospital?.city || '—'} • ${user?.username || ''}`} accent="#2563eb" />
-        <Card title="Patients" value={stats?.num_patients ?? '—'} subtitle="Local dataset partition only" accent="#10b981" />
-        <Card title="Columns" value={stats?.num_columns ?? '—'} subtitle="age, temperature, heart_rate, ..." accent="#f59e0b" />
-        <Card title="Local accuracy" value={formatPct(active?.local_accuracy)} subtitle="Before Ministry aggregation" accent="#8b5cf6" />
+    <div className="screen-grid">
+      <section className="hero-panel hospital-hero">
+        <div>
+          <p className="eyebrow">Hospital Section</p>
+          <h2>{hospital?.name || 'Hospital'} local training workspace.</h2>
+        </div>
+        <div className="hero-status">
+          <StatusBadge status={status} />
+          <span>{user?.username}</span>
+        </div>
+      </section>
+
+      <div className="stats-grid">
+        <StatTile label="Patients" value={stats?.num_patients ?? '-'} detail="Local records" tone="blue" />
+        <StatTile label="Columns" value={stats?.num_columns ?? '-'} detail="Dataset features" tone="green" />
+        <StatTile label="Local accuracy" value={formatPct(active?.local_accuracy)} detail="After local training" tone="amber" />
+        <StatTile label="Global accuracy" value={formatPct(active?.global_accuracy)} detail="Ministry model" tone="violet" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '360px minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
-        <Section title="Hospital workspace">
-          <div style={{ display: 'grid', gap: 12 }}>
-            <div><strong>Status:</strong> <StatusBadge status={active?.status || hospital?.status || 'waiting'} /></div>
-            <div><strong>Round:</strong> {active?.round_progress || '0/0'}</div>
-            <div><strong>Training progress:</strong></div>
-            <ProgressBar value={active?.status === 'training' ? 55 : active?.status === 'weights sent' ? 100 : 0} />
-            <div><strong>Local accuracy:</strong> {formatPct(active?.local_accuracy)}</div>
-            <div><strong>Previous accuracy:</strong> {formatPct(comparison.previous)}</div>
-            <div><strong>New accuracy:</strong> {formatPct(comparison.next)}</div>
-            <div><strong>Improvement:</strong> <span style={{ color: improvement >= 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>{improvement >= 0 ? '+' : ''}{formatPct(Math.abs(improvement))}</span></div>
-            <button onClick={onTrain} disabled={loading} style={primaryButtonStyle}>
-              Train Local Model
-            </button>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>
-              This is a simulation of local hospital training. In production each hospital would run on its own machine and send only model updates, not raw patient data.
+      <div className="hospital-layout">
+        <Panel title="Training Console" eyebrow="Local operation">
+          <div className="training-console">
+            <div className="training-ring">
+              <strong>{progress}%</strong>
+              <span>progress</span>
             </div>
-            {active?.notification ? (
-              <div style={{ padding: 12, borderRadius: 10, background: '#eff6ff', color: '#1d4ed8' }}>{active.notification}</div>
-            ) : null}
+            <div className="training-details">
+              <dl className="detail-list">
+                <div><dt>Hospital</dt><dd>{hospital?.name || '-'}</dd></div>
+                <div><dt>City</dt><dd>{hospital?.city || '-'}</dd></div>
+                <div><dt>Round</dt><dd>{active?.round_progress || '0/0'}</dd></div>
+                <div><dt>Disease</dt><dd>{active?.disease_type || stats?.disease_type || '-'}</dd></div>
+              </dl>
+              <ProgressBar value={progress} />
+              <button className="btn btn-primary" onClick={onTrain} disabled={loading}>Train Local Model</button>
+            </div>
           </div>
-        </Section>
+        </Panel>
 
-        <div style={{ display: 'grid', gap: 16 }}>
-          <Section title="Dataset snapshot">
-            <div style={{ display: 'grid', gap: 8, fontSize: 14 }}>
-              <div><strong>Disease:</strong> {stats?.disease_type || hospital?.disease_type || 'sepsis'}</div>
-              <div><strong>Columns:</strong> {stats?.columns?.join(', ') || 'age, temperature, heart_rate, respiratory_rate, wbc, blood_pressure, sepsis_label'}</div>
-              <div><strong>Dataset source:</strong> Deterministic hospital split of a PhysioNet-style sepsis simulation dataset</div>
+        <Panel title="Ministry Feedback" eyebrow="Model update">
+          <div className="feedback-grid">
+            <div className="feedback-number">
+              <span>Improvement</span>
+              <strong className={improvement >= 0 ? 'positive' : 'negative'}>{improvement >= 0 ? '+' : ''}{formatPct(improvement)}</strong>
             </div>
-          </Section>
+            <dl className="detail-list compact">
+              <div><dt>Previous</dt><dd>{formatPct(active?.previous_accuracy)}</dd></div>
+              <div><dt>New</dt><dd>{formatPct(active?.new_accuracy)}</dd></div>
+              <div><dt>Notification</dt><dd>{active?.notification || 'Waiting for aggregation'}</dd></div>
+            </dl>
+          </div>
+        </Panel>
 
-          <Section title="Ministry feedback">
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div><strong>Notification:</strong> {active?.notification || 'Waiting for Ministry to aggregate...'}</div>
-              <div><strong>Received model:</strong> {active?.status === 'done' ? '✅' : '⏳'}</div>
-              <div><strong>Previous accuracy:</strong> {formatPct(comparison.previous)}</div>
-              <div><strong>New accuracy:</strong> {formatPct(comparison.next)}</div>
-              <div><strong>Improvement:</strong> {improvement >= 0 ? `+${formatPct(improvement)}` : `-${formatPct(Math.abs(improvement))}`}</div>
-            </div>
-          </Section>
-        </div>
+        <Panel title="Dataset Snapshot" eyebrow="Local data">
+          <div className="dataset-chips">
+            {(stats?.columns || []).map((column) => <span key={column}>{column}</span>)}
+          </div>
+          <dl className="detail-list compact">
+            <div><dt>Hospital code</dt><dd>{stats?.hospital_code || hospital?.code || '-'}</dd></div>
+            <div><dt>Disease</dt><dd>{stats?.disease_type || hospital?.disease_type || '-'}</dd></div>
+            <div><dt>Rows</dt><dd>{stats?.num_patients ?? '-'}</dd></div>
+            <div><dt>Features</dt><dd>{stats?.num_columns ?? '-'}</dd></div>
+          </dl>
+        </Panel>
+
+        <Panel title="Workflow State" eyebrow="What happens next">
+          <ol className="step-list">
+            <li className={progress >= 0 ? 'done' : ''}>Receive selected global model</li>
+            <li className={progress >= 55 ? 'done' : ''}>Train on local hospital data</li>
+            <li className={progress >= 100 ? 'done' : ''}>Send model weights to Ministry</li>
+            <li className={status === 'done' ? 'done' : ''}>Receive improved global model</li>
+          </ol>
+        </Panel>
       </div>
     </div>
   )
 }
 
-const primaryButtonStyle = {
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: '12px 16px',
-  fontWeight: 700,
-  cursor: 'pointer',
+function EmptyState({ title, detail }) {
+  return (
+    <div className="empty-state">
+      <strong>{title}</strong>
+      <span>{detail}</span>
+    </div>
+  )
 }
-
-const secondaryButtonStyle = {
-  background: '#f3f4f6',
-  color: '#111827',
-  border: '1px solid #d1d5db',
-  borderRadius: 10,
-  padding: '12px 16px',
-  fontWeight: 700,
-  cursor: 'pointer',
-}
-
-const tableTh = { padding: '8px 6px', fontSize: 13 }
-const tableTd = { padding: '10px 6px', verticalAlign: 'top', fontSize: 13 }

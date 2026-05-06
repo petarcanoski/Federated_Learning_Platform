@@ -30,7 +30,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="FedHealth-MK - Healthcare Federated Learning Platform", lifespan=lifespan)
+app = FastAPI(title="FedHealth-MK - Healthcare Federated Learning Platform", root_path="/api", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

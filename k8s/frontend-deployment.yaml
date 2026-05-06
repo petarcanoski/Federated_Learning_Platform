@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fl-frontend
+  namespace: fl-platform
+  labels:
+    app: fl-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fl-frontend
+  template:
+    metadata:
+      labels:
+        app: fl-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: user/fl-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+

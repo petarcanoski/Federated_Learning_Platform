@@ -20,10 +20,15 @@ export default function ExperimentCharts({ rounds }) {
   const latestClients = latestRound?.client_metrics || []
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-        <h3 style={{ marginTop: 0 }}>Global model progress</h3>
-        <div style={{ width: '100%', height: 320 }}>
+    <div className="chart-grid">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Model performance</p>
+            <h2>Global model progress</h2>
+          </div>
+        </div>
+        <div className="chart-frame">
           <ResponsiveContainer>
             <LineChart data={rounds || []}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -37,11 +42,16 @@ export default function ExperimentCharts({ rounds }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </section>
 
-      <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-        <h3 style={{ marginTop: 0 }}>Latest round client accuracy</h3>
-        <div style={{ width: '100%', height: 280 }}>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Client comparison</p>
+            <h2>Latest round accuracy</h2>
+          </div>
+        </div>
+        <div className="chart-frame chart-frame-short">
           <ResponsiveContainer>
             <BarChart data={latestClients}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -57,7 +67,7 @@ export default function ExperimentCharts({ rounds }) {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

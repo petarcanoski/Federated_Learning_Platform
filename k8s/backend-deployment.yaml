@@ -18,11 +18,12 @@ spec:
       containers:
         - name: backend
           image: user/fl-backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
             - name: DATABASE_URL
-              value: "postgresql://fl_user:fl_pass@fl-postgres:5440/fl_db"
+              value: "postgresql://fl_user:fl_pass@fl-postgres:5432/fl_db"
           readinessProbe:
             httpGet:
               path: /
