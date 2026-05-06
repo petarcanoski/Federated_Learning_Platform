@@ -1,2 +1,4 @@
+# Local backend env files only; example templates should be committed.
 .env
+.env.*
 .env.example

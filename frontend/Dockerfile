@@ -6,8 +6,8 @@ RUN npm install --include=dev --legacy-peer-deps
 RUN ls node_modules/.bin/ | grep vite
 COPY . .
 # VITE_BACKEND_URL is baked into the JS bundle at build time, not runtime
-ARG VITE_BACKEND_URL=http://localhost:8000
-ENV VITE_BACKEND_URL=http://localhost:8000
+ARG VITE_BACKEND_URL=${VITE_BACKEND_URL}
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
 
 FROM nginx:stable-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
