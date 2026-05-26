@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from .db import get_db, init_db
+from .db import init_db
 from .models import User
 from .schemas import ExperimentCreateRequest, HospitalCreateRequest, LoginRequest
 from .security import decode_access_token
@@ -55,7 +55,7 @@ def _service_call(fn, *args, **kwargs):
         raise HTTPException(status_code=404, detail="job not found")
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer), db=Depends(get_db)) -> User:
+def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> User:
     if credentials is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -63,7 +63,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         user_id = int(payload["sub"])
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
-    user = db.query(User).filter(User.id == user_id).first()
+    user = User.objects(id=user_id).first()
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid token")
     return user

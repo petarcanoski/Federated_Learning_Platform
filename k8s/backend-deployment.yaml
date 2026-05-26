@@ -6,7 +6,7 @@ metadata:
   labels:
     app: fl-backend
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: fl-backend
@@ -22,8 +22,10 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: DATABASE_URL
-              value: "postgresql://fl_user:fl_pass@fl-postgres:5432/fl_db"
+            - name: MONGODB_URI
+              value: "mongodb://fl-mongo-0.fl-mongo.fl-platform.svc.cluster.local:27017,fl-mongo-1.fl-mongo.fl-platform.svc.cluster.local:27017,fl-mongo-2.fl-mongo.fl-platform.svc.cluster.local:27017/fl_db?replicaSet=rs0"
+            - name: MONGODB_DB_NAME
+              value: "fl_db"
           readinessProbe:
             httpGet:
               path: /

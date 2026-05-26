@@ -1,13 +1,6 @@
-from pathlib import Path
-
-from backend.app.db import init_db
 from backend.app.schemas import ExperimentCreateRequest
 from backend.app.services.experiment_service import ExperimentService
 
-
-def setup_module(module):
-    Path('federated_learning.db').unlink(missing_ok=True)
-    init_db()
 
 
 def test_start_experiment_and_run_round_persists_history():

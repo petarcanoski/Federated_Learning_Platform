@@ -1,29 +1,25 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
-
-from sqlalchemy.orm import Session
+from typing import Iterable
 
 from ..models import ClientMetric, Experiment, ExperimentRound
 
 
 class ExperimentRepository:
-    def create_experiment(self, db: Session, experiment: Experiment) -> Experiment:
-        db.add(experiment)
-        db.flush()
+    def create_experiment(self, experiment: Experiment) -> Experiment:
+        experiment.save()
         return experiment
 
-    def get_by_job_id(self, db: Session, job_id: str) -> Optional[Experiment]:
-        return db.query(Experiment).filter(Experiment.job_id == job_id).first()
+    def get_by_job_id(self, job_id: str) -> Experiment | None:
+        return Experiment.objects(job_id=job_id).first()
 
-    def list_experiments(self, db: Session) -> list[Experiment]:
-        return db.query(Experiment).order_by(Experiment.created_at.desc()).all()
+    def list_experiments(self) -> list[Experiment]:
+        return list(Experiment.objects.order_by("-created_at"))
 
-    def add_round(self, db: Session, round_obj: ExperimentRound, metrics: Iterable[ClientMetric]) -> ExperimentRound:
-        db.add(round_obj)
-        db.flush()
-        for metric in metrics:
-            round_obj.client_metrics.append(metric)
+    def add_round(self, experiment: Experiment, round_obj: ExperimentRound, metrics: Iterable[ClientMetric]) -> ExperimentRound:
+        round_obj.client_metrics.extend(metrics)
+        experiment.rounds.append(round_obj)
+        experiment.save()
         return round_obj
 
 

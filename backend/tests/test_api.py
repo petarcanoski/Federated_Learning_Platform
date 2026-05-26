@@ -1,14 +1,7 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
-from backend.app.db import init_db
 from backend.app.main import app
 
-
-def setup_module(module):
-    Path('federated_learning.db').unlink(missing_ok=True)
-    init_db()
 
 
 def test_health_and_start_experiment_endpoints():

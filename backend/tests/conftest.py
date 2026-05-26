@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-from pathlib import Path
 import os
 
 import pytest
 
 
-TEST_DB = Path(__file__).resolve().parent / 'test_federated_learning.db'
-
-# Ensure app.db sees a dedicated SQLite database before any test module imports app.*.
-os.environ['DATABASE_URL'] = f'sqlite:///{TEST_DB.as_posix()}'
+os.environ["MONGODB_USE_MOCK"] = "1"
+os.environ["MONGODB_DB_NAME"] = "federated_learning_test"
+os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017/federated_learning_test")
 
 
 @pytest.fixture(autouse=True)
 def clean_test_db():
-    TEST_DB.unlink(missing_ok=True)
-    from backend.app.db import init_db
+    from backend.app.db import init_db, reset_database
 
+    reset_database()
     init_db()
     yield
-    TEST_DB.unlink(missing_ok=True)
+    reset_database()
 
 
 

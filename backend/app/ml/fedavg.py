@@ -7,6 +7,15 @@ import torch
 
 
 StateDict = OrderedDict[str, torch.Tensor]
+MONGO_KEY_DOT = "．"
+
+
+def _encode_key(key: str) -> str:
+    return key.replace(".", MONGO_KEY_DOT)
+
+
+def _decode_key(key: str) -> str:
+    return key.replace(MONGO_KEY_DOT, ".")
 
 
 def average_state_dicts(weighted_updates: Iterable[Tuple[int, StateDict]]) -> StateDict:
@@ -30,9 +39,9 @@ def average_state_dicts(weighted_updates: Iterable[Tuple[int, StateDict]]) -> St
 
 
 def state_dict_to_json(state_dict: StateDict) -> dict:
-    return {key: tensor.detach().cpu().tolist() for key, tensor in state_dict.items()}
+    return {_encode_key(key): tensor.detach().cpu().tolist() for key, tensor in state_dict.items()}
 
 
 def json_to_state_dict(payload: dict) -> StateDict:
-    return OrderedDict((key, torch.tensor(value, dtype=torch.float32)) for key, value in payload.items())
+    return OrderedDict((_decode_key(key), torch.tensor(value, dtype=torch.float32)) for key, value in payload.items())
 
